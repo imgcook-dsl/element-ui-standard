@@ -33,9 +33,15 @@ co(function*() {
     }
   });
 
+  const {template, imports, datas, methods, lifeCycles, styles} = renderInfo.renderData;
+  console.log(`imports===============\n${imports}`);
+  console.log(`datas===============\n${datas}`);
+  console.log(`methods===============\n${methods}`);
+  console.log(`lifeCycles===============\n${lifeCycles}`);
   if (renderInfo.noTemplate) {
     renderInfo.panelDisplay.forEach((file) => {
       fs.writeFileSync(path.join(__dirname, `../code/${file.panelName}`), file.panelValue);
+    //   fs.writeFileSync(`C:\\Users\\chenc\\Desktop\\imgcook\\art3.0\\src\\views\\artifact\\${file.panelName}`, file.panelValue);
     });
   } else {
     const renderData = renderInfo.renderData;
@@ -46,11 +52,12 @@ co(function*() {
     );
 
     const prettierOpt = renderInfo.prettierOpt || {
-      printWidth: 120
+      parser: 'vue',
+      printWidth: 80,
+      singleQuote: true
     };
 
     const prettierRes = prettier.format(ret, prettierOpt);
-
-    fs.writeFileSync(path.join(__dirname,'../code/result.js'), prettierRes);
+    fs.writeFileSync(path.join(__dirname,'../code/result.vue'), prettierRes);
   }
 });
