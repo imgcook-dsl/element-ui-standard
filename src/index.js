@@ -84,7 +84,8 @@ module.exports = function(schema, option) {
       const styleData = [];
       for (let key in style) {
         let value = style[key];
-        if (boxStyleList.indexOf(key) != -1) {
+        // 键在盒子模型相关样式中，值不是auto或者%结束的内容
+        if (boxStyleList.indexOf(key) != -1 && !/auto|%$/.test(String(value))) {
           if (toVW) {
             value = (parseInt(value) / _w).toFixed(2);
             value = value == 0 ? value : value + 'vw';
@@ -120,9 +121,9 @@ module.exports = function(schema, option) {
       if (typeof value === 'string') {
         if (isExpression(value)) {
           if (isReactNode) {
-            return `{{${value.slice(7, -2)}}}`;
+            return `{{${value.slice(7, -2)}}}`.replace(/this.state.|this.|state./, '');// 去掉表达式中的this.
           } else {
-            return value.slice(2, -2);
+            return value.slice(2, -2).replace(/this.state.|this.|state./, '');// 去掉表达式中的this.
           }
         }
   
@@ -134,19 +135,31 @@ module.exports = function(schema, option) {
           constants[name] = value;
           return `"constants.${name}"`;
         } else {
-          return `"${value}"`;
+          try {
+            JSON.parse(value);// 如果能够转为JavaScript对象，则原样返回
+            return value;
+          } catch (e) {
+            return `'${value}'`;
+          }
         }
       } else if (typeof value === 'function') {
         const {params, content, name} = parseFunction(value);
         expressionName[name] = expressionName[name] ? expressionName[name] + 1 : 1;
         methods.push(`${name}_${expressionName[name]}(${params}) {${content}}`);
         return `${name}_${expressionName[name]}`;
+      } else if (['number', 'boolean'].includes(typeof value)) {
+        return value;
+      } else if (typeof value === 'object') {
+        let json = JSON.stringify(value);
+        return json.replace(/"(\w+)":/g, '$1:').replace(/:"(.+?)"/g, ':\'$1\'');// 去掉object中属性名的双引号，修改属性值为字符串的为单引号
       }
     }
   
     const parsePropsKey = (key, value) => {
       if (typeof value === 'function') {
         return `@${transformEventName(key)}`;
+      } else if (key === 'v-model') {// v-model直接原样返回
+        return key;
       } else {
         return `:${key}`;
       }
@@ -233,10 +246,8 @@ module.exports = function(schema, option) {
       let loopArgItem = (loopArg && loopArg[0]) || 'item';
       let loopArgIndex = (loopArg && loopArg[1]) || 'index';
   
-
-      console.log('*******************', datas)
-      if (Array.isArray(loop) && datas.filter((value) => value.startsWith('loopData').length < 1)) {
-        data = 'loopData';
+      if (Array.isArray(loop)) {
+        data = 'loopData' + datas.length; // 防止重复
         datas.push(`${data}: ${toString(loop)}`);
       } else if (isExpression(loop)) {
         data = loop.slice(2, -2).replace('this.state.', '');
@@ -320,6 +331,15 @@ module.exports = function(schema, option) {
               xml = `<div${classString}${props} />`;
             }
             break;
+          default:
+            let ele = `el-${_.kebabCase(schema.componentName)}`;
+            if (schema.children) {
+              xml = `<${ele}${classString}${props}>${transform(schema.children, true)}</${ele}>`;
+            } else {
+              xml = `<${ele}${classString}${props} />`;
+            }
+            break;
+            ;
         }
       }
       if (schema.loop) {
@@ -426,6 +446,7 @@ module.exports = function(schema, option) {
 <script>
     ${imports.join('\n')}
     export default {
+    name: 'ArtifactPage',
     data() {
         return {
         ${datas.join(',\n')}
@@ -437,9 +458,9 @@ module.exports = function(schema, option) {
     ${lifeCycles.join(',\n')}
     }
 </script>
-<style src="./index.response.css" />
+<style src="./index.css" />
   `;
-console.log('==========================');
+console.log('++++++++++++++++++++++++++');
 console.log(vue);
 console.log('++++++++++++++++++++++++++');
     return {
