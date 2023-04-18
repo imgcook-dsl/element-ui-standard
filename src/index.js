@@ -253,9 +253,10 @@ module.exports = function(schema, option) {
         data = loop.slice(2, -2).replace('this.state.', '');
       }
       // add loop key
-      const tagEnd = render.indexOf('>');
+      const tagEnd = render.endsWith('/>') ? render.lastIndexOf('/>') : render.lastIndexOf('>');// 解决单标签/>结尾解析错误
       const keyProp = render.slice(0, tagEnd).indexOf('key=') == -1 ? `:key="${loopArgIndex}"` : '';
       render = `
+        <!-- eslint-disable-next-line -->
         ${render.slice(0, tagEnd)}
         v-for="(${loopArgItem}, ${loopArgIndex}) in ${data}"  
         ${keyProp}
@@ -267,6 +268,21 @@ module.exports = function(schema, option) {
   
       return render;
     }
+
+    /**
+     * 获取所有_开头的值
+     * @param {Array} props 属性名称数组
+     * @returns 
+     */
+    const getSpecial = (props) => {
+        let special = [];
+        for (val of props) {
+            if (val.startsWith('_')) {
+                special.push(val);
+            }
+        }
+        return special;
+    } 
   
     // generate render xml
     const generateRender = (schema, isInContainer) => {
@@ -291,8 +307,9 @@ module.exports = function(schema, option) {
       let xml;
       let props = '';
       
+      let special = getSpecial(Object.keys(schema.props));// 存放需要特殊处理的属性，即下划线开头的
       Object.keys(schema.props).forEach((key) => {
-        if (['className', 'style', 'text', 'src'].indexOf(key) === -1) {
+        if (['className', 'style', 'text', 'src'].indexOf(key) === -1 && !special.includes(key)) {
           props += ` ${parsePropsKey(key, schema.props[key])}="${parseProps(schema.props[key])}"`;
         }
       })
@@ -333,8 +350,10 @@ module.exports = function(schema, option) {
             break;
           default:
             let ele = `el-${_.kebabCase(schema.componentName)}`;
-            if (schema.children) {
+            if (schema.children && schema.children.length) {
               xml = `<${ele}${classString}${props}>${transform(schema.children, true)}</${ele}>`;
+            } else if (special && special.includes('_text')) {
+              xml = `<${ele}${classString}${props}>${schema.props['_text']}</${ele}>`;
             } else {
               xml = `<${ele}${classString}${props} />`;
             }
