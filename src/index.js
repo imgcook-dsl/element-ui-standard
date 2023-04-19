@@ -106,9 +106,9 @@ module.exports = function(schema, option) {
     // parse function, return params and content
     const parseFunction = (func) => {
       const funcString = func.toString();
-      const name = funcString.slice(funcString.indexOf('function'), funcString.indexOf('(')).replace('function ','');
+      const name = funcString.slice(funcString.indexOf('function'), funcString.indexOf('(')).replace(/function|\s*/g,'');
       const params = funcString.match(/\([^\(\)]*\)/)[0].slice(1, -1);
-      const content = funcString.slice(funcString.indexOf('{') + 1, funcString.lastIndexOf('}'));
+      const content = funcString.slice(funcString.indexOf('{') + 1, funcString.lastIndexOf('}'));// 注意，参数列表不要包含对象解构的内容，目前暂时无法区分函数体的花括号
       return {
         params,
         content,
@@ -145,7 +145,7 @@ module.exports = function(schema, option) {
       } else if (typeof value === 'function') {
         const {params, content, name} = parseFunction(value);
         expressionName[name] = expressionName[name] ? expressionName[name] + 1 : 1;
-        methods.push(`${name}_${expressionName[name]}(${params}) {${content}}`);
+        methods.push(`// eslint-disable-next-line\n${name}_${expressionName[name]}(${params}) {${content}}`);
         return `${name}_${expressionName[name]}`;
       } else if (['number', 'boolean'].includes(typeof value)) {
         return value;
@@ -156,10 +156,10 @@ module.exports = function(schema, option) {
     }
   
     const parsePropsKey = (key, value) => {
-      if (typeof value === 'function') {
-        return `@${transformEventName(key)}`;
-      } else if (typeof value === 'string' && value.startsWith('v-')) {// v-开头直接原样返回
+      if (typeof key === 'string' && (key.startsWith('v-') || key.startsWith('@'))) {// v-开头直接原样返回
         return key;
+      } else if (typeof key === 'string' && key.startsWith('on') && typeof value === 'function') {
+        return `@${transformEventName(key)}`;
       } else {
         return `:${key}`;
       }
@@ -253,7 +253,7 @@ module.exports = function(schema, option) {
         data = loop.slice(2, -2).replace('this.state.', '');
       }
       // add loop key
-      const tagEnd = render.endsWith('/>') ? render.lastIndexOf('/>') : render.lastIndexOf('>');// 解决单标签/>结尾解析错误
+      const tagEnd = render.endsWith('/>') ? render.lastIndexOf('/>') : render.indexOf('>');// 解决单标签/>结尾解析错误
       const keyProp = render.slice(0, tagEnd).indexOf('key=') == -1 ? `:key="${loopArgIndex}"` : '';
       render = `
         <!-- eslint-disable-next-line -->
@@ -270,18 +270,18 @@ module.exports = function(schema, option) {
     }
 
     /**
-     * 获取所有_开头的值
-     * @param {Array} props 属性名称数组
+     * 获取所有_开头的属性
+     * @param {Array<string>} props 属性名称数组
      * @returns 
      */
-    const getSpecial = (props) => {
-        let special = [];
+    const filterUnderscore = (props) => {
+        let underscore = [];
         for (val of props) {
             if (val.startsWith('_')) {
-                special.push(val);
+                underscore.push(val);
             }
         }
-        return special;
+        return underscore;
     } 
   
     // generate render xml
@@ -307,9 +307,9 @@ module.exports = function(schema, option) {
       let xml;
       let props = '';
       
-      let special = getSpecial(Object.keys(schema.props));// 存放需要特殊处理的属性，即下划线开头的
+      let underscore = filterUnderscore(Object.keys(schema.props));// 存放需要特殊处理的属性，即下划线开头的
       Object.keys(schema.props).forEach((key) => {
-        if (['className', 'style', 'text', 'src'].indexOf(key) === -1 && !special.includes(key)) {
+        if (['className', 'style', 'text', 'src'].indexOf(key) === -1 && !underscore.includes(key)) {
           props += ` ${parsePropsKey(key, schema.props[key])}="${parseProps(schema.props[key])}"`;
         }
       })
@@ -352,7 +352,7 @@ module.exports = function(schema, option) {
             let ele = `el-${_.kebabCase(schema.componentName)}`;
             if (schema.children && schema.children.length) {
               xml = `<${ele}${classString}${props}>${transform(schema.children, true)}</${ele}>`;
-            } else if (special && special.includes('_text')) {
+            } else if (underscore && underscore.includes('_text')) {
               xml = `<${ele}${classString}${props}>${schema.props['_text']}</${ele}>`;
             } else {
               xml = `<${ele}${classString}${props} />`;
