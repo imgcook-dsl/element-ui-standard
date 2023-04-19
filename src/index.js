@@ -158,7 +158,7 @@ module.exports = function(schema, option) {
     const parsePropsKey = (key, value) => {
       if (typeof value === 'function') {
         return `@${transformEventName(key)}`;
-      } else if (key === 'v-model') {// v-model直接原样返回
+      } else if (typeof value === 'string' && value.startsWith('v-')) {// v-开头直接原样返回
         return key;
       } else {
         return `:${key}`;
