@@ -457,28 +457,31 @@ module.exports = function(schema, option) {
       printWidth: 80,
       singleQuote: true
     };
-  
-    const vue = `\
-<template>
-    ${template}
-</template>
-<script>
-    ${imports.join('\n')}
-    export default {
-    name: 'ArtifactPage',
+    const js = `\
+${imports.join('\n')}
+export default {
+    name: '${schema.componentName}',
     data() {
         return {
-        ${datas.join(',\n')}
+            ${datas.join(',\n')}
         } 
     },
     methods: {
         ${methods.join(',\n')}
     },
     ${lifeCycles.join(',\n')}
-    }
+} 
+`;
+    const vue = `\
+<template>
+    ${template}
+</template>
+<script>
+    import ${schema.componentName} from './index.js';
+    export default ${schema.componentName};
 </script>
 <style src="./index.css" />
-  `;
+`;
 console.log('++++++++++++++++++++++++++');
 console.log(vue);
 console.log('++++++++++++++++++++++++++');
@@ -488,6 +491,11 @@ console.log('++++++++++++++++++++++++++');
           panelName: `index.vue`,
           panelValue: prettier.format(vue, prettierOpt),
           panelType: 'vue',
+        },
+        {
+          panelName: `index.js`,
+          panelValue: prettier.format(js, {singleQuote: true}),
+          panelType: 'js',
         },
         {
           panelName: 'index.css',
